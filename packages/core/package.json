@@ -69,7 +69,7 @@
     "undici": "^7.10.0",
     "uuid": "^13.0.0",
     "web-tree-sitter": "^0.25.10",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "optionalDependencies": {
     "@lydell/node-pty": "1.1.0",
