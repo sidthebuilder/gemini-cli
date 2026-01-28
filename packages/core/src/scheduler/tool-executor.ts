@@ -41,6 +41,38 @@ export interface ToolExecutionContext {
   onUpdateToolCall: (updatedCall: ToolCall) => void;
 }
 
+export class ToolExecutionError extends Error {
+  constructor(
+    message: string,
+    readonly returnDisplay?: string,
+    readonly errorType?: ToolErrorType,
+  ) {
+    super(message);
+    this.name = 'ToolExecutionError';
+  }
+}
+
+/**
+ * Helper to determine the user-facing display message for a tool error.
+ * returnDisplay is for users (friendly), error.message is for developers (raw).
+ */
+function getToolErrorMessage(error: unknown): {
+  message: string;
+  display: string;
+  errorType?: ToolErrorType;
+} {
+  if (error instanceof ToolExecutionError) {
+    return {
+      message: error.message,
+      display: error.returnDisplay ?? error.message,
+      errorType: error.errorType,
+    };
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return { message, display: message };
+}
+
 export class ToolExecutor {
   constructor(private readonly config: Config) {}
 
@@ -123,11 +155,13 @@ export class ToolExecutor {
           } else if (toolResult.error === undefined) {
             return await this.createSuccessResult(call, toolResult);
           } else {
-            return this.createErrorResult(
-              call,
-              new Error(toolResult.error.message),
+            // If the tool returned an error with a custom display, propagate it
+            const error = new ToolExecutionError(
+              toolResult.error.message,
+              toolResult.returnDisplay,
               toolResult.error.type,
             );
+            return this.createErrorResult(call, error);
           }
         } catch (executionError: unknown) {
           spanMetadata.error = executionError;
@@ -137,15 +171,17 @@ export class ToolExecutor {
               'User cancelled tool execution.',
             );
           }
-          const error =
-            executionError instanceof Error
-              ? executionError
-              : new Error(String(executionError));
-          return this.createErrorResult(
-            call,
-            error,
-            ToolErrorType.UNHANDLED_EXCEPTION,
+          const { message, display, errorType } =
+            getToolErrorMessage(executionError);
+
+          // If it's not a known tool error type, treat as unhandled exception
+          const finalErrorType = errorType ?? ToolErrorType.UNHANDLED_EXCEPTION;
+          const error = new ToolExecutionError(
+            message,
+            display,
+            finalErrorType,
           );
+          return this.createErrorResult(call, error);
         }
       },
     );
@@ -269,10 +305,18 @@ export class ToolExecutor {
 
   private createErrorResult(
     call: ToolCall,
-    error: Error,
+    error: Error | ToolExecutionError,
+    // kept for back-compat if called directly, but prefer ToolExecutionError properties
     errorType?: ToolErrorType,
   ): ErroredToolCall {
-    const response = this.createErrorResponse(call.request, error, errorType);
+    const finalErrorType =
+      error instanceof ToolExecutionError ? error.errorType : errorType;
+
+    const response = this.createErrorResponse(
+      call.request,
+      error,
+      finalErrorType,
+    );
     const startTime = 'startTime' in call ? call.startTime : undefined;
 
     return {
@@ -287,9 +331,10 @@ export class ToolExecutor {
 
   private createErrorResponse(
     request: ToolCallRequestInfo,
-    error: Error,
+    error: Error | ToolExecutionError,
     errorType: ToolErrorType | undefined,
   ): ToolCallResponseInfo {
+    const { message, display } = getToolErrorMessage(error);
     return {
       callId: request.callId,
       error,
@@ -298,13 +343,13 @@ export class ToolExecutor {
           functionResponse: {
             id: request.callId,
             name: request.name,
-            response: { error: error.message },
+            response: { error: message },
           },
         },
       ],
-      resultDisplay: error.message,
+      resultDisplay: display,
       errorType,
-      contentLength: error.message.length,
+      contentLength: message.length,
     };
   }
 }

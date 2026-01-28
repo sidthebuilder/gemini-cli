@@ -107,10 +107,10 @@ describe('sanitizeEnvironment', () => {
       // JWT
       JWT_TOKEN: 'eyJhbGciOiJIUzI1NiJ9.e30.ZRrHA157xAA_7962-a_3rA',
       // Stripe
-      STRIPE_SK_LIVE: 'sk_live_xxxxxxxxxxxxxxxxxxxxxxxx',
-      STRIPE_RK_LIVE: 'rk_live_xxxxxxxxxxxxxxxxxxxxxxxx',
-      STRIPE_SK_TEST: 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxx',
-      STRIPE_RK_TEST: 'rk_test_xxxxxxxxxxxxxxxxxxxxxxxx',
+      STRIPE_SK_LIVE: 'STRIPE_SK_LIVE_REDACTED',
+      STRIPE_RK_LIVE: 'STRIPE_RK_LIVE_REDACTED',
+      STRIPE_SK_TEST: 'STRIPE_SK_TEST_REDACTED',
+      STRIPE_RK_TEST: 'STRIPE_RK_TEST_REDACTED',
       // Slack
       SLACK_XOXB: 'xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',
       SLACK_XOXA: 'xoxa-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',

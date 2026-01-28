@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToolExecutor } from './tool-executor.js';
+import { ToolExecutor, ToolExecutionError } from './tool-executor.js';
 import type { Config } from '../index.js';
 import type { ToolResult } from '../tools/tools.js';
 import { makeFakeConfig } from '../test-utils/config.js';
@@ -134,6 +134,88 @@ describe('ToolExecutor', () => {
     expect(result.status).toBe('error');
     if (result.status === 'error') {
       expect(result.response.error?.message).toBe('Tool Failed');
+      // Default behavior: display == message
+      expect(result.response.resultDisplay).toBe('Tool Failed');
+    }
+  });
+
+  it('should use returnDisplay for execution errors when provided', async () => {
+    const mockTool = new MockTool({
+      name: 'failFriendlyTool',
+    });
+    const invocation = mockTool.build({});
+
+    // Mock executeToolWithHooks to return an error result with returnDisplay
+    vi.mocked(coreToolHookTriggers.executeToolWithHooks).mockResolvedValue({
+      llmContent: 'ignored',
+      returnDisplay: 'Friendly Error Message',
+      error: {
+        message: 'Raw System Error',
+      },
+    } as ToolResult);
+
+    const scheduledCall: ScheduledToolCall = {
+      status: 'scheduled',
+      request: {
+        callId: 'call-friendly-err',
+        name: 'failFriendlyTool',
+        args: {},
+        isClientInitiated: false,
+        prompt_id: 'prompt-4',
+      },
+      tool: mockTool,
+      invocation: invocation as unknown as AnyToolInvocation,
+      startTime: Date.now(),
+    };
+
+    const result = await executor.execute({
+      call: scheduledCall,
+      signal: new AbortController().signal,
+      onUpdateToolCall: vi.fn(),
+    });
+
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.response.error?.message).toBe('Raw System Error');
+      expect(result.response.resultDisplay).toBe('Friendly Error Message');
+    }
+  });
+
+  it('should use returnDisplay when ToolExecutionError is thrown', async () => {
+    const mockTool = new MockTool({
+      name: 'throwFriendlyTool',
+    });
+    const invocation = mockTool.build({});
+
+    // Mock executeToolWithHooks to throw a ToolExecutionError
+    vi.mocked(coreToolHookTriggers.executeToolWithHooks).mockRejectedValue(
+      new ToolExecutionError('Raw Thrown Error', 'Friendly Thrown Message'),
+    );
+
+    const scheduledCall: ScheduledToolCall = {
+      status: 'scheduled',
+      request: {
+        callId: 'call-throw-friendly',
+        name: 'throwFriendlyTool',
+        args: {},
+        isClientInitiated: false,
+        prompt_id: 'prompt-5',
+      },
+      tool: mockTool,
+      invocation: invocation as unknown as AnyToolInvocation,
+      startTime: Date.now(),
+    };
+
+    const result = await executor.execute({
+      call: scheduledCall,
+      signal: new AbortController().signal,
+      onUpdateToolCall: vi.fn(),
+    });
+
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.response.error?.message).toBe('Raw Thrown Error');
+      expect(result.response.resultDisplay).toBe('Friendly Thrown Message');
     }
   });
 
